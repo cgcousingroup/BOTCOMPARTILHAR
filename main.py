@@ -71,34 +71,29 @@ async def share_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Salva horário do clique
     last_click_time[user_id] = time.time()
 
-    # Mensagem informando que ele deve sair pra compartilhar
-    await query.edit_message_caption(
-        caption="📤 Selecione amigos na lista abaixo e compartilhe o conteúdo.\n\n"
-                "Assim que enviar, volte aqui! Vamos verificar automaticamente.",
+    # Mensagem para o usuário sair e compartilhar
+    await query.message.reply_text(
+        "📤 Selecione amigos na lista abaixo e compartilhe o conteúdo.\n\n"
+        "Assim que enviar, volte aqui! Vamos verificar automaticamente.",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("📱 Abrir lista de contatos", url=SHARE_LINK)]]
-        )
+        ),
     )
 
-    # Após 5 segundos, mostrar botão “Já compartilhei”
-    def show_confirm_button():
-        time.sleep(5)
-        try:
-            keyboard = [[InlineKeyboardButton("✅ Já compartilhei", callback_data="shared")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            context.application.create_task(
-                query.edit_message_caption(
-                    caption="👍 Já compartilhou com um amigo? Clique abaixo para confirmar 👇",
-                    parse_mode="HTML",
-                    reply_markup=reply_markup
-                )
-            )
-        except Exception as e:
-            print("Erro ao atualizar mensagem:", e)
+    # Aguarda 5 segundos e depois envia o botão “✅ Já compartilhei”
+    async def show_confirm_button():
+        await asyncio.sleep(5)
+        keyboard = [[InlineKeyboardButton("✅ Já compartilhei", callback_data="shared")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.message.reply_text(
+            "👍 Já compartilhou com um amigo? Clique abaixo para confirmar 👇",
+            parse_mode="HTML",
+            reply_markup=reply_markup,
+        )
 
-    threading.Thread(target=show_confirm_button).start()
-
+    # Cria uma task assíncrona (sem bloquear o bot)
+    asyncio.create_task(show_confirm_button())
 
 # --------------------- Quando clicar em “✅ Já compartilhei” ---------------------
 async def shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -159,3 +154,4 @@ def main():
 # --------------------- Execução ---------------------
 if __name__ == "__main__":
     main()
+
