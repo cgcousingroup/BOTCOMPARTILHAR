@@ -9,6 +9,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
+import asyncio
 
 # 🔑 Token do seu bot
 TOKEN = "8464960674:AAHac8qmO06W0AgYA94EGudbt7pLs5wR-Q8"
@@ -154,4 +155,5 @@ def main():
 # --------------------- Execução ---------------------
 if __name__ == "__main__":
     main()
+
 
