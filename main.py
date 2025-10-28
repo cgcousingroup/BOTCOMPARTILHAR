@@ -3,7 +3,12 @@ import threading
 import urllib.parse
 from pathlib import Path
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+)
 
 # 🔑 Token do seu bot
 TOKEN = "8464960674:AAHac8qmO06W0AgYA94EGudbt7pLs5wR-Q8"
@@ -31,7 +36,7 @@ last_click_time = {}  # armazena o tempo em que o usuário clicou em “comparti
 
 
 # --------------------- /start ---------------------
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_progress[user_id] = 0
 
@@ -47,10 +52,9 @@ def start(update: Update, context: CallbackContext):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # 📸 Envia a imagem local (muito mais rápido que URL)
+    # 📸 Envia a imagem local
     with open(IMAGE_PATH, "rb") as img:
-        context.bot.send_photo(
-            chat_id=update.effective_chat.id,
+        await update.message.reply_photo(
             photo=img,
             caption=text,
             parse_mode="HTML",
@@ -59,16 +63,16 @@ def start(update: Update, context: CallbackContext):
 
 
 # --------------------- Quando clicar em “📤 Compartilhar com amigos” ---------------------
-def share_now(update: Update, context: CallbackContext):
+async def share_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
-    query.answer()
+    await query.answer()
 
     # Salva horário do clique
     last_click_time[user_id] = time.time()
 
     # Mensagem informando que ele deve sair pra compartilhar
-    query.edit_message_caption(
+    await query.edit_message_caption(
         caption="📤 Selecione amigos na lista abaixo e compartilhe o conteúdo.\n\n"
                 "Assim que enviar, volte aqui! Vamos verificar automaticamente.",
         parse_mode="HTML",
@@ -83,12 +87,12 @@ def share_now(update: Update, context: CallbackContext):
         try:
             keyboard = [[InlineKeyboardButton("✅ Já compartilhei", callback_data="shared")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            context.bot.edit_message_caption(
-                chat_id=query.message.chat_id,
-                message_id=query.message.message_id,
-                caption="👍 Já compartilhou com um amigo? Clique abaixo para confirmar 👇",
-                parse_mode="HTML",
-                reply_markup=reply_markup
+            context.application.create_task(
+                query.edit_message_caption(
+                    caption="👍 Já compartilhou com um amigo? Clique abaixo para confirmar 👇",
+                    parse_mode="HTML",
+                    reply_markup=reply_markup
+                )
             )
         except Exception as e:
             print("Erro ao atualizar mensagem:", e)
@@ -97,10 +101,10 @@ def share_now(update: Update, context: CallbackContext):
 
 
 # --------------------- Quando clicar em “✅ Já compartilhei” ---------------------
-def shared(update: Update, context: CallbackContext):
+async def shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
-    query.answer()
+    await query.answer()
 
     now = time.time()
     last_time = last_click_time.get(user_id, 0)
@@ -108,7 +112,7 @@ def shared(update: Update, context: CallbackContext):
 
     # Se o usuário clicou muito rápido, não conta
     if time_diff < 5:
-        query.edit_message_caption(
+        await query.edit_message_caption(
             caption="⚠️ Parece que você não chegou a compartilhar.\n"
                     "Tente novamente e espere alguns segundos após enviar aos amigos.",
             parse_mode="HTML",
@@ -126,14 +130,14 @@ def shared(update: Update, context: CallbackContext):
         keyboard = [[InlineKeyboardButton("📤 Compartilhar com amigos", callback_data="share_now")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        query.edit_message_caption(
+        await query.edit_message_caption(
             caption=f"📢 Compartilhamentos confirmados: {progress}/5\n\n"
                     "Continue compartilhando para liberar o acesso VIP 👑",
             parse_mode="HTML",
             reply_markup=reply_markup
         )
     else:
-        query.edit_message_caption(
+        await query.edit_message_caption(
             caption=f"🎉 Parabéns! Você completou 5 compartilhamentos!\n\n"
                     f"Aqui está seu acesso VIP 👇\n{VIP_LINK}",
             parse_mode="HTML"
@@ -142,16 +146,14 @@ def shared(update: Update, context: CallbackContext):
 
 # --------------------- Main ---------------------
 def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+    app = ApplicationBuilder().token(TOKEN).build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(share_now, pattern="^share_now$"))
-    dp.add_handler(CallbackQueryHandler(shared, pattern="^shared$"))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(share_now, pattern="^share_now$"))
+    app.add_handler(CallbackQueryHandler(shared, pattern="^shared$"))
 
     print("🤖 Bot rodando com imagem local e texto de compartilhamento limpo...")
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
 
 
 # --------------------- Execução ---------------------
